@@ -1,40 +1,38 @@
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-
 class Monitor {
     private final Lock lock = new ReentrantLock();
     private final Condition eventOccurred = lock.newCondition();
-    private boolean isEventOccured = false;
+    private boolean ready = false;
 
-    public void produceEvent() throws InterruptedException {
+    public void provide() throws InterruptedException {
         lock.lock();
         try {
-            // Имитация генерации события с задержкой в одну секунду
-            Thread.sleep(1000);
-
-            // Устанавливаем флаг события и будим ожидающий поток
-            isEventOccured = true;
+            while (ready) {
+                eventOccurred.await();
+            }
+            ready = true;
+            System.out.println("Запрос отправлен");
             eventOccurred.signal();
-            System.out.println("Событие произошло!");
         } finally {
             lock.unlock();
+            Thread.sleep(1000);  // Пауза после provide
         }
     }
 
-    public void consumeEvent() throws InterruptedException {
+    public void consume() throws InterruptedException {
         lock.lock();
         try {
-            // Ожидаем события
-            while (!isEventOccured) {
+            while (!ready) {
                 eventOccurred.await();
             }
-
-            // Обрабатываем событие и сбрасываем флаг
-            System.out.println("Событие обработано!");
-            isEventOccured = false;
+            ready = false;
+            System.out.println("Запрос обработан");
+            eventOccurred.signal();
         } finally {
             lock.unlock();
+            Thread.sleep(1000);  // Пауза после consume
         }
     }
 }
@@ -50,7 +48,7 @@ class ProducerThread extends Thread {
     public void run() {
         try {
             while (true) {
-                monitor.produceEvent();
+                monitor.provide();
             }
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -69,7 +67,7 @@ class ConsumerThread extends Thread {
     public void run() {
         try {
             while (true) {
-                monitor.consumeEvent();
+                monitor.consume();
             }
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -88,3 +86,4 @@ public class Main {
         consumerThread.start();
     }
 }
+
